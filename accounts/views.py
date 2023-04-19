@@ -13,6 +13,7 @@ from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from allauth.socialaccount.providers.google import views as google_view
 from allauth.socialaccount.providers.kakao import views as kakao_view
 from allauth.socialaccount.providers.github import views as github_view
+from allauth.socialaccount.providers.naver import views as naver_view
 from allauth.socialaccount.providers.oauth2.client import OAuth2Error
 
 
@@ -20,9 +21,11 @@ from allauth.socialaccount.providers.oauth2.client import OAuth2Error
 # 구글 소셜로그인 변수 설정
 state = os.environ.get("STATE")
 BASE_URL = 'http://localhost:8000/'
+
 GOOGLE_CALLBACK_URI = BASE_URL + 'accounts/google/callback/'
 KAKAO_CALLBACK_URI = BASE_URL + 'accounts/kakao/callback/'
 GITHUB_CALLBACK_URI = BASE_URL + 'accounts/github/callback/'
+NAVER_CALLBACK_URI = BASE_URL + 'accounts/naver/callback/'
 
 # 구글 로그인
 def google_login(request):
@@ -303,4 +306,43 @@ class GithubLogin(SocialLoginView):
     """
     adapter_class = github_view.GitHubOAuth2Adapter
     callback_url = GITHUB_CALLBACK_URI
+    client_class = OAuth2Client
+
+
+def naver_login(request):
+    client_id = os.environ.get("SOCIAL_AUTH_NAVER_CLIENT_ID")
+    return redirect(f"https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id={client_id}&state=STATE_STRING&redirect_uri={NAVER_CALLBACK_URI}")
+
+def naver_callback(request):
+    client_id = os.environ.get("SOCIAL_AUTH_NAVER_CLIENT_ID")
+    client_secret = os.environ.get("SOCIAL_AUTH_NAVER_SECRET")
+    code = request.GET.get("code")
+    state_string = request.GET.get("state")
+
+    # code로 access token 요청
+    token_request = requests.get(f"https://nid.naver.com/oauth2.0/token?grant_type=authorization_code&client_id={client_id}&client_secret={client_secret}&code={code}&state={state_string}")
+    token_response_json = token_request.json()
+
+    error = token_response_json.get("error", None)
+    if error is not None:
+        raise JSONDecodeError(error)
+
+    access_token = token_response_json.get("access_token")
+
+    # return JsonResponse({"access_token":access_token})
+
+    # access token으로 네이버 프로필 요청
+    profile_request = requests.post(
+        "https://openapi.naver.com/v1/nid/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    profile_json = profile_request.json()
+
+    email = profile_json.get("response").get("email")
+
+    if email is None:
+        return JsonResponse({'err_msg': 'failed to get email'}, status=status.HTTP_400_BAD_REQUEST)
+class NaverLogin(SocialLoginView):
+    adapter_class = naver_view.NaverOAuth2Adapter
+    callback_url = NAVER_CALLBACK_URI
     client_class = OAuth2Client
