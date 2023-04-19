@@ -50,8 +50,11 @@ python manage.py createsuperuser
 
 ## TEST
 host/account/google/login
+
 host/account/kakao/login
+
 host/account/github/login
+
 host/account/naver/login
 
 
